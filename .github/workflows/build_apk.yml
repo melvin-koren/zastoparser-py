@@ -13,15 +13,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Java 17 (для Android SDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Subversion (требуется для flet)
+        run: sudo apt-get update && sudo apt-get install -y subversion
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Flet CLI
+      - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install flet Jsoup requests beautifulsoup4
+          pip install flet requests beautifulsoup4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
 
       - name: Build APK via Flet
         run: |
