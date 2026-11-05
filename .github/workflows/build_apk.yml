@@ -19,10 +19,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Android SDK paths
-        run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-
       - name: Set up Subversion
         run: sudo apt-get update && sudo apt-get install -y subversion
 
@@ -36,15 +32,16 @@ jobs:
           pip install --upgrade pip
           pip install flet requests beautifulsoup4
 
-      - name: Manual Clean Flutter Install
-        run: |
-          git clone https://github.com -b stable $HOME/flutter
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
 
       - name: Build APK via Flet
         run: |
-          export PATH="$HOME/flutter/bin:$PATH"
-          flet build apk --no-analytics
+          # Явно передаем путь к Android SDK, который предустановлен в системе Actions
+          flet build apk --no-analytics --android-sdk-path $ANDROID_SDK_ROOT
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
