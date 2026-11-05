@@ -19,7 +19,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Initialize Android Project Files
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Initialize Verified Android Project
         run: |
           # 1. Корневой build.gradle
           cat << 'INNER_EOF' > build.gradle
@@ -71,7 +74,7 @@ jobs:
           </manifest>
           INNER_EOF
 
-          # 5. Исходный код MainActivity.java (совместимый нативный код)
+          # 5. Исходный код MainActivity.java
           mkdir -p app/src/main/java/com/example/zastogramparser
           cat << 'INNER_EOF' > app/src/main/java/com/example/zastogramparser/MainActivity.java
           package com.example.zastogramparser;
@@ -137,7 +140,7 @@ jobs:
           }
           INNER_EOF
 
-      - name: Build with Gradle
+      - name: Build with Gradle Wrapper Setup
         run: |
           gradle wrapper --gradle-version 8.2
           ./gradlew assembleDebug
