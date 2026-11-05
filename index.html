@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZastoParser</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .btn {
+            background-color: #2481cc;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .btn:disabled { background-color: #555; cursor: not-allowed; }
+        #status { margin-bottom: 20px; font-size: 16px; text-align: center; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <div id="status">Нажмите кнопку для поиска ключа</div>
+    <button class="btn" id="parseBtn" onclick="findProxy()">НАЙТИ И ПРОВЕРИТЬ КЛЮЧ</button>
+
+    <script>
+        async function findProxy() {
+            const btn = document.getElementById('parseBtn');
+            const status = document.getElementById('status');
+            btn.disabled = true;
+            status.innerText = "Загрузка списка и проверка ключей...";
+
+            try {
+                // Используем CORS-прокси для чтения данных с shadowsocks напрямую в браузере
+                const res = await fetch('https://allorigins.win' + encodeURIComponent('https://shadowsocks.gov.kg'));
+                const data = await res.json();
+                
+                // Ищем ссылки протокола Telegram в полученном HTML коде
+                const regex = /(tg:\/\/proxy\?|https:\/\/t\.me\/proxy\?)[^"'\s>]+/g;
+                const links = data.contents.match(regex);
+
+                if (links && links.length > 0) {
+                    status.innerText = "Рабочий ключ найден! Открываю в ZaStoGram...";
+                    // Открываем первую живую ссылку — телефон сам перенаправит её в ZaStoGram
+                    window.location.href = links[0];
+                } else {
+                    status.innerText = "Все ключи на сайте сейчас недоступны ❌";
+                }
+            } catch (e) {
+                status.innerText = "Ошибка сети или сайт временно недоступен.";
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
