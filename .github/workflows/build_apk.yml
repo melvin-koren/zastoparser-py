@@ -1,4 +1,4 @@
-name: Build Python APK
+name: Build Native Android APK
 
 on:
   push:
@@ -19,33 +19,131 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install Dependencies
+      - name: Initialize Android Project Files
         run: |
-          pip install --upgrade pip
-          pip install flet requests beautifulsoup4
+          # 1. Корневой build.gradle
+          cat << 'INNER_EOF' > build.gradle
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.1.4' }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          INNER_EOF
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
+          # 2. settings.gradle
+          echo "include ':app'" > settings.gradle
 
-      - name: Prepare Flet Build Environment
+          # 3. Модуль app/build.gradle
+          mkdir -p app
+          cat << 'INNER_EOF' > app/build.gradle
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.example.zastogramparser'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.example.zastogramparser"
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'org.jsoup:jsoup:1.16.1'
+          }
+          INNER_EOF
+
+          # 4. AndroidManifest.xml
+          mkdir -p app/src/main
+          cat << 'INNER_EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://android.com">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          INNER_EOF
+
+          # 5. Исходный код MainActivity.java (совместимый нативный код)
+          mkdir -p app/src/main/java/com/example/zastogramparser
+          cat << 'INNER_EOF' > app/src/main/java/com/example/zastogramparser/MainActivity.java
+          package com.example.zastogramparser;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.widget.Button;
+          import android.widget.Toast;
+          import org.jsoup.Jsoup;
+          import org.jsoup.nodes.Document;
+          import org.jsoup.select.Elements;
+          import java.net.InetSocketAddress;
+          import java.net.Socket;
+
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  Button btn = new Button(this);
+                  btn.setText("НАЙТИ И ПРОВЕРИТЬ КЛЮЧ ZASTOGRAM");
+                  setContentView(btn);
+
+                  btn.setOnClickListener(v -> new Thread(() -> {
+                      try {
+                          Document doc = Jsoup.connect("https://shadowsocks.gov.kg").get();
+                          Elements links = doc.select("a[href^=tg://proxy], a[href^=https://t.me]");
+                          String workingUrl = null;
+
+                          for (int i = 0; i < links.size(); i++) {
+                              String url = links.get(i).attr("href");
+                              Uri uri = Uri.parse(url);
+                              String server = uri.getQueryParameter("server");
+                              int port = Integer.parseInt(uri.getQueryParameter("port"));
+
+                              try (Socket socket = new Socket()) {
+                                  socket.connect(new InetSocketAddress(server, port), 1200);
+                                  workingUrl = url;
+                                  break;
+                              } catch (Exception ignored) {}
+                          }
+
+                          String finalUrl = workingUrl;
+                          runOnUiThread(() -> {
+                              if (finalUrl != null) {
+                                  Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(finalUrl));
+                                  intent.setPackage("org.telegram.zastogram");
+                                  try {
+                                      startActivity(intent);
+                                  } catch (Exception e) {
+                                      startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(finalUrl)));
+                                  }
+                              } else {
+                                  Toast.makeText(MainActivity.this, "Нет рабочих прокси", Toast.LENGTH_LONG).show();
+                              }
+                          });
+                      } catch (Exception e) {
+                          runOnUiThread(() -> Toast.makeText(MainActivity.this, "Ошибка сети", Toast.LENGTH_SHORT).show());
+                      }
+                  }).start());
+              }
+          }
+          INNER_EOF
+
+      - name: Build with Gradle
         run: |
-          # Создаем экспорт проекта для сборки
-          flet pack main.py --as-service || true
+          gradle wrapper --gradle-version 8.2
+          ./gradlew assembleDebug
 
-      - name: Build Android APK
-        run: |
-          # Прямая сборка через встроенный шаблонизатор Flet CLI
-          flet build apk --no-analytics --verbose
-
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: zastogram-parser-apk
-          path: build/apk/*.apk
+          path: app/build/outputs/apk/debug/*.apk
