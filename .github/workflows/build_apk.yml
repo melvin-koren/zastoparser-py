@@ -19,15 +19,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Subversion
-        run: sudo apt-get update && sudo apt-get install -y subversion
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Python dependencies
+      - name: Install Dependencies
         run: |
           pip install --upgrade pip
           pip install flet requests beautifulsoup4
@@ -36,12 +33,16 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true
 
-      - name: Build APK via Flet
+      - name: Prepare Flet Build Environment
         run: |
-          # Явно передаем путь к Android SDK, который предустановлен в системе Actions
-          flet build apk --no-analytics --android-sdk-path $ANDROID_SDK_ROOT
+          # Создаем экспорт проекта для сборки
+          flet pack main.py --as-service || true
+
+      - name: Build Android APK
+        run: |
+          # Прямая сборка через встроенный шаблонизатор Flet CLI
+          flet build apk --no-analytics --verbose
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
